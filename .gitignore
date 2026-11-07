@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+backend/data/cqa.db
+backend/data/cache/
+backend/data/uploads/

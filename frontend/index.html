@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Freedom CQA — оценка качества диалогов</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Шрифты. Без интернета сработают системные запасные шрифты из styles.css -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Unbounded:wght@400;500;600&family=Open+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Тема до отрисовки, чтобы не мигало: сохранённый выбор, иначе — тема системы.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("cqa.theme"); } catch (e) {}
+      if (!t) t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/" aria-label="Freedom CQA — к списку диалогов"><span class="brand-mark">Q</span><span class="brand-name">FREEDOM CQA</span></a>
+    <nav class="nav" id="nav">
+      <a href="#/" data-route="list">Диалоги</a>
+      <a href="#/appeals" data-route="appeals">Апелляции <span class="count hidden" id="appeal-count"></span></a>
+      <a href="#/checklist" data-route="checklist">Чек-лист</a>
+      <a href="#/accuracy" data-route="accuracy">Точность</a>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Переключить тему">☀</button>
+  </header>
+
+  <!-- Корневой контейнер. В Dynamics 365 приложение монтируется в любой элемент: CQA.mount(el) -->
+  <main id="app" class="page"></main>
+  <div class="toasts" id="toasts"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

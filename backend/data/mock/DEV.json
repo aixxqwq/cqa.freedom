@@ -1,0 +1,51 @@
+{
+  "error": "",
+  "isSuccess": true,
+  "data": {
+    "dataset_group_id": "DEV",
+    "total_records": 3,
+    "records": [
+      {
+        "conversation_id": "mock-ru-001",
+        "channel": "agent chat",
+        "language": "RU",
+        "transcript": [
+          {"timestamp": "00:00", "speaker": "bot", "text": "Здравствуйте! Я виртуальный помощник. Опишите ваш вопрос."},
+          {"timestamp": "00:05", "speaker": "client", "text": "Не могу вывести деньги со счёта, заявка висит третий день."},
+          {"timestamp": "00:06", "speaker": "system", "text": "Диалог переведён на оператора."},
+          {"timestamp": "00:20", "speaker": "operator", "text": "Здравствуйте! Меня зовут Алина. Подскажите, пожалуйста, номер заявки и на какую карту выводите?"},
+          {"timestamp": "00:45", "speaker": "client", "text": "Заявка 55812, на карту Kaspi."},
+          {"timestamp": "00:50", "speaker": "operator", "text": "Спасибо. Подождите, пожалуйста, пару минут, проверю статус."},
+          {"timestamp": "02:30", "speaker": "operator", "text": "Спасибо за ожидание! Заявка на проверке комплаенса, срок до 5 рабочих дней. Деньги поступят до пятницы."},
+          {"timestamp": "02:50", "speaker": "client", "text": "Понятно, спасибо."},
+          {"timestamp": "02:55", "speaker": "operator", "text": "Остались ли у вас ещё вопросы? Хорошего дня!"}
+        ],
+        "audio_url": null
+      },
+      {
+        "conversation_id": "mock-en-002",
+        "channel": "agent chat",
+        "language": "EN",
+        "transcript": [
+          {"timestamp": "00:00", "speaker": "client", "text": "Can you guarantee I will make 20% on this bond?"},
+          {"timestamp": "00:30", "speaker": "operator", "text": "Sure, 20% is guaranteed, no risk at all."},
+          {"timestamp": "00:50", "speaker": "client", "text": "Great, thanks."}
+        ],
+        "audio_url": null
+      },
+      {
+        "conversation_id": "mock-kz-003",
+        "channel": "voice call",
+        "language": "KZ",
+        "transcript": [
+          {"timestamp": "2026-11-01T10:00:02+05:00", "speaker": "operator", "text": "Сәлеметсіз бе! Freedom Broker, менің атым Дәулет. Сізге қалай көмектесе аламын?"},
+          {"timestamp": "2026-11-01T10:00:10+05:00", "speaker": "client", "text": "Сәлеметсіз бе, шотқа ақша салу жолын білгім келеді."},
+          {"timestamp": "2026-11-01T10:00:25+05:00", "speaker": "operator", "text": "Қосымшада «Толықтыру» батырмасын басыңыз, карта немесе аударым арқылы салуға болады."},
+          {"timestamp": "2026-11-01T10:00:50+05:00", "speaker": "client", "text": "Рахмет, түсіндім."},
+          {"timestamp": "2026-11-01T10:00:55+05:00", "speaker": "operator", "text": "Басқа сұрақтарыңыз бар ма? Сау болыңыз!"}
+        ],
+        "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+      }
+    ]
+  }
+}
