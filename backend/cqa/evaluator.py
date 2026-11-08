@@ -279,7 +279,8 @@ def _evaluate_deepseek(conversation: dict, checklist: Checklist) -> dict:
         ],
         "response_format": {"type": "json_object"},
         "thinking": {"type": DEEPSEEK_THINKING},
-        "max_tokens": 8000,
+        # с рассуждениями модели нужно больше места: рассуждение тоже входит в лимит ответа
+        "max_tokens": 8000 if DEEPSEEK_THINKING == "disabled" else 32000,
     }
     last_error = "пустой ответ"
     for _ in range(2):  # DeepSeek иногда возвращает пустой JSON — повторяем один раз
