@@ -51,6 +51,13 @@ export async function renderList(root) {
             <label class="check small"><input type="checkbox" id="only-missing" checked> только неоценённые</label>
           </div>
         </div>
+        <div class="field"><label for="team">Команда · выгрузка results.json</label>
+          <div class="row">
+            <input type="text" id="team" placeholder="Название команды" value="${esc(prefs.get("team", ""))}" style="width:170px">
+            <select id="export-set"><option value="dev">results/dev</option><option value="prod">results/prod</option></select>
+            <button class="btn" id="export" type="button">Сохранить results.json</button>
+          </div>
+        </div>
         <div class="field grow hidden" id="batch-box"><label id="batch-label">Оценка…</label>
           <div class="progress"><div id="batch-bar" style="width:0"></div></div>
         </div>
@@ -156,6 +163,23 @@ export async function renderList(root) {
   $("#search").oninput = (e) => { filters.search = e.target.value; draw(); };
   $("#load").onclick = () => load(true);
   $("#group").onkeydown = (e) => { if (e.key === "Enter") load(true); };
+
+  // ---- выгрузка results.json для организаторов ----
+  $("#export-set").value = ($("#group").value.trim().toUpperCase() === "DEV") ? "dev" : "prod";
+  $("#export").onclick = async () => {
+    const team = $("#team").value.trim();
+    if (!team) return toast("Укажите название команды", "bad");
+    prefs.set("team", team);
+    const g = $("#group").value.trim() || DEFAULT_GROUP;
+    const set = $("#export-set").value;
+    if (set === "prod" && g.toUpperCase() === "DEV") return toast("В results/prod нужен контрольный набор, а не DEV", "bad");
+    try {
+      const r = await api.exportResults(g, set, team);
+      const msg = `${r.path}: ${r.ok} из ${r.total} оценены` + (r.errors.length ? `, не оценены: ${r.errors.join(", ")}` : "");
+      if (r.problems.length) toast(`${msg}. Проблемы: ${r.problems.slice(0, 2).join("; ")}`, "bad");
+      else toast(`${msg}. Формат проверен ✓ Теперь git add, commit и push`, "ok");
+    } catch (e) { toast(e.message, "bad"); }
+  };
 
   // ---- загрузка своего диалога ----
   $("#open-upload").onclick = () => { $("#upload-card").classList.toggle("hidden"); $("#up-text").focus(); };

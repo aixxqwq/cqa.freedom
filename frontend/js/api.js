@@ -54,6 +54,7 @@ export const api = {
   batch: (group_id, checklist_id, only_missing) => request("POST", "/api/batch", { group_id, checklist_id, only_missing }),
   batchStatus: (job_id) => request("GET", `/api/batch/${encodeURIComponent(job_id)}`),
 
+  exportResults: (group_id, set, team_name) => request("POST", "/api/export", { group_id, set, team_name }),
   groundTruth: () => request("GET", "/api/ground-truth"),
   saveGroundTruth: (id, answers, author) =>
     request("PUT", `/api/ground-truth/${encodeURIComponent(id)}`, { answers, author }),

@@ -73,6 +73,37 @@ frontend/
   разметку CSV/JSON на странице «Точность». Страница считает совпадение по критериям, ошибку итогового
   балла и поиск грубых ошибок — так же, как организаторы сравнят систему с Ground Truth.
 
+## Результаты для организаторов
+
+Файлы по формату «Приложения к гайду» (JSON 1.0):
+
+- `results/dev/results.json` — все 65 диалогов DEV;
+- `results/prod/results.json` — 10 контрольных чатов.
+
+Выгрузка: на сайте «Диалоги» → «Команда · выгрузка results.json» → «Сохранить results.json», или из папки `backend`:
+
+```bash
+python export_results.py --group DEV --set dev --team "Название команды"
+python export_results.py --group FBroker --set prod --team "Название команды" --evaluate --refresh --expect 10
+```
+
+Скрипт берёт последнюю оценку ИИ по каждому диалогу, переводит критерии в коды организаторов
+(`contact, discovery, identification, consultation, empathy, dialogue, closure, critical`), значения в
+`true / false / null / число`, номера реплик — с 1, и проверяет файл: все диалоги ровно по разу, 8 критериев,
+допустимые значения, `critical_flag` = `critical`. Неоценённый диалог попадает как `status: "error"`.
+
+## Выбор ИИ
+
+Поддерживаются два облачных провайдера, переключение — в `backend/.env`, код менять не нужно:
+
+| `CQA_EVALUATOR` | Модель | Ключ |
+|---|---|---|
+| `claude` | `claude-opus-5-5` (или `CQA_MODEL`) | `ANTHROPIC_API_KEY` |
+| `deepseek` | `deepseek-flash` (V4.1-Flash, без рассуждений; или `DEEPSEEK_MODEL`) | `DEEPSEEK_API_KEY` |
+
+Промпт, чек-лист, голосование и подсчёт баллов одинаковые для обоих. Модель записывается в каждую оценку.
+DeepSeek ≈ $0,002 за один голос (по цене в часы пик, $0,30 / $1,20 за 1M токенов).
+
 ## Модель и стоимость
 
 Модель: `claude-opus-5-5` (настраивается через `CQA_MODEL`). Одна оценка — один запрос к API.

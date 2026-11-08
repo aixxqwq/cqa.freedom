@@ -3,9 +3,10 @@
 ИИ возвращает только ответы, объяснения и номера реплик-доказательств.
 Баллы считает scoring.py — так итог детерминирован и проверяем.
 
-Два режима (переменная CQA_EVALUATOR):
-  * claude — настоящая оценка через Claude API (нужен ANTHROPIC_API_KEY)
-  * mock   — простая эвристика без ИИ, чтобы фронтенд мог работать офлайн
+Режимы (переменная CQA_EVALUATOR; если не задана — выбирается по тому, какой ключ есть):
+  * claude   — Claude API (нужен ANTHROPIC_API_KEY)
+  * deepseek — DeepSeek API (нужен DEEPSEEK_API_KEY)
+  * mock     — простая эвристика без ИИ, чтобы фронтенд мог работать офлайн
 """
 from __future__ import annotations
 
@@ -24,7 +25,25 @@ from .scoring import normalize
 MODEL = os.getenv("CQA_MODEL", "claude-opus-5-5")
 EFFORT = os.getenv("CQA_EFFORT", "medium")
 # Цены за 1M токенов (input, output) для подсчёта стоимости одной оценки.
-PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-5-5": (0.10, 0.50)}
+PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-5-5": (0.10, 0.50),
+          # DeepSeek: цена «в часы пик» (верхняя оценка); вне пика вдвое дешевле
+          "deepseek-flash": (0.30, 1.20), "deepseek-v4-pro": (1.32, 3.96)}
+
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+# Режим рассуждений DeepSeek: disabled (быстрее и дешевле, как старый V3) или enabled
+DEEPSEEK_THINKING = os.getenv("DEEPSEEK_THINKING", "disabled")
+DEEPSEEK_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com") + "/chat/completions"
+
+
+def provider() -> str:
+    explicit = os.getenv("CQA_EVALUATOR")
+    if explicit:
+        return explicit
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return "claude"
+    if os.getenv("DEEPSEEK_API_KEY"):
+        return "deepseek"
+    return "mock"
 
 SYSTEM_PROMPT = """Ты — специалист по контролю качества (QA) контакт-центра брокерской компании.
 Ты оцениваешь работу ОПЕРАТОРА по чек-листу. Диалоги бывают на русском, казахском и английском;
@@ -153,14 +172,17 @@ def evaluate(conversation: dict, checklist: Checklist) -> dict:
     берётся ответ большинства, для шкалы без большинства — медиана. Так оценка
     стабильнее, а доля совпавших голосов показывает уверенность.
     """
-    mode = os.getenv("CQA_EVALUATOR", "claude" if os.getenv("ANTHROPIC_API_KEY") else "mock")
+    mode = provider()
     started = time.time()
     if mode == "mock":
         runs = [_evaluate_mock(conversation, checklist)]
     else:
+        fn = {"claude": _evaluate_claude, "deepseek": _evaluate_deepseek}.get(mode)
+        if not fn:
+            raise RuntimeError(f"Неизвестный CQA_EVALUATOR: {mode}")
         n = max(1, VOTES)
         with ThreadPoolExecutor(max_workers=n) as pool:
-            futures = [pool.submit(_evaluate_claude, conversation, checklist) for _ in range(n)]
+            futures = [pool.submit(fn, conversation, checklist) for _ in range(n)]
             runs, errors = [], []
             for f in futures:
                 try:
@@ -208,18 +230,99 @@ def aggregate(runs: list[dict], checklist: Checklist) -> dict:
     }
 
 
-def _evaluate_claude(conversation: dict, checklist: Checklist) -> dict:
-    started = time.time()
-    import anthropic
-
-    client = anthropic.Anthropic()
-    user = (
+def build_user_prompt(conversation: dict, checklist: Checklist) -> str:
+    return (
         f"Язык диалога: {conversation.get('language')}. Канал: {conversation.get('channel')}.\n\n"
         f"ОБЩИЕ ПРАВИЛА ОЦЕНКИ:\n{checklist.guidance}\n\n"
         f"ЧЕК-ЛИСТ:\n{format_checklist(checklist)}\n\n"
         f"ТРАНСКРИПТ (номер реплики в квадратных скобках):\n{format_transcript(conversation)}\n\n"
         f"Оцени оператора по КАЖДОМУ критерию чек-листа."
     )
+
+
+def _items_from_json(text: str, conversation: dict, checklist: Checklist) -> list[dict]:
+    data = json.loads(text)
+    raw = {r.get("criterion_id"): r for r in data.get("criteria", []) if isinstance(r, dict)}
+    n = len(conversation["transcript"])
+    return [
+        _clean_item(c, raw.get(c.id) or {"answer": "no", "explanation": "Модель не вернула ответ по критерию"}, n)
+        for c in checklist.criteria
+    ]
+
+
+# DeepSeek в JSON-режиме не знает схему: описываем формат словами и примером (слово json обязательно).
+DEEPSEEK_FORMAT = """
+Ответ верни строго в формате json, без пояснений вокруг, по такому образцу:
+{"criteria": [
+  {"criterion_id": "contact", "answer": "yes", "explanation": "Да. В [3] оператор поздоровался и представился.",
+   "evidence": [3], "checked_from": -1, "checked_to": -1, "na_reason": ""},
+  {"criterion_id": "consultation", "answer": "15", "explanation": "...", "evidence": [5, 7],
+   "checked_from": 5, "checked_to": 9, "na_reason": ""}
+]}
+Поля обязательны для КАЖДОГО критерия чек-листа: criterion_id (как в чек-листе), answer (строка),
+explanation, evidence (массив номеров реплик), checked_from, checked_to (числа, -1 если не нужно), na_reason.
+"""
+
+
+def _evaluate_deepseek(conversation: dict, checklist: Checklist) -> dict:
+    import httpx
+
+    key = os.getenv("DEEPSEEK_API_KEY")
+    if not key:
+        raise RuntimeError("Не задан DEEPSEEK_API_KEY в backend/.env")
+    started = time.time()
+    body = {
+        "model": DEEPSEEK_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT + DEEPSEEK_FORMAT},
+            {"role": "user", "content": build_user_prompt(conversation, checklist)},
+        ],
+        "response_format": {"type": "json_object"},
+        "thinking": {"type": DEEPSEEK_THINKING},
+        "max_tokens": 8000,
+    }
+    last_error = "пустой ответ"
+    for _ in range(2):  # DeepSeek иногда возвращает пустой JSON — повторяем один раз
+        r = httpx.post(DEEPSEEK_URL, json=body, timeout=180,
+                       headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        if r.status_code == 402:
+            raise RuntimeError("DeepSeek: недостаточно средств на балансе")
+        if r.status_code == 401:
+            raise RuntimeError("DeepSeek: неверный API-ключ")
+        r.raise_for_status()
+        data = r.json()
+        choice = data["choices"][0]
+        text = (choice["message"].get("content") or "").strip()
+        if choice.get("finish_reason") == "length":
+            last_error = "ответ обрезан (max_tokens)"
+            continue
+        if not text:
+            continue
+        try:
+            items = _items_from_json(text, conversation, checklist)
+        except (json.JSONDecodeError, ValueError, AttributeError) as e:
+            last_error = f"некорректный JSON: {e}"
+            continue
+        u = data.get("usage", {})
+        tin, tout = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+        p_in, p_out = PRICES.get(DEEPSEEK_MODEL, (0, 0))
+        return {
+            "items": items,
+            "model": data.get("model", DEEPSEEK_MODEL),
+            "usage": {"input_tokens": tin, "output_tokens": tout,
+                      "cost_usd": round((tin * p_in + tout * p_out) / 1_000_000, 5)},
+            "raw": text,
+            "duration_s": round(time.time() - started, 1),
+        }
+    raise RuntimeError(f"DeepSeek: {last_error}")
+
+
+def _evaluate_claude(conversation: dict, checklist: Checklist) -> dict:
+    started = time.time()
+    import anthropic
+
+    client = anthropic.Anthropic()
+    user = build_user_prompt(conversation, checklist)
     response = client.beta.messages.create(
         model=MODEL,
         max_tokens=16000,

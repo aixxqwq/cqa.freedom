@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, ValidationError  # noqa: E402
 
-from cqa import datasource, service, storage, upload  # noqa: E402
+from cqa import datasource, export, service, storage, upload  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -193,6 +193,36 @@ def batch(req: BatchRequest):
 @app.get("/api/batch/{job_id}")
 def batch_status(job_id: str):
     return service.get_job(job_id)
+
+
+# ---------- выгрузка results.json для организаторов ----------
+
+class ExportRequest(BaseModel):
+    group_id: str
+    set: str            # dev | prod
+    team_name: str
+    mode: str = "external_api"
+
+
+@app.post("/api/export")
+def export_results(req: ExportRequest):
+    """Пишет results/<set>/results.json в репозиторий и проверяет формат по приложению к гайду."""
+    if req.set not in ("dev", "prod"):
+        raise HTTPException(400, "set: dev или prod")
+    if not req.team_name.strip():
+        raise HTTPException(400, "Укажите название команды")
+    data = export.build_results(req.group_id, req.team_name.strip(), req.mode)
+    path = Path(__file__).resolve().parent.parent / "results" / req.set / "results.json"
+    export.write(data, path)
+    expected = 10 if req.set == "prod" else None
+    return {
+        "path": f"results/{req.set}/results.json",
+        "total": len(data["results"]),
+        "ok": sum(r["status"] == "ok" for r in data["results"]),
+        "errors": [r["conversation_id"] for r in data["results"] if r["status"] == "error"],
+        "model": data["model"]["name"],
+        "problems": export.validate(data, expected),
+    }
 
 
 # ---------- эталон и точность ----------
