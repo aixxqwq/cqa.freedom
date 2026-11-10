@@ -6,7 +6,7 @@
 ## Как устроено
 
 ```
-frontend/  (HTML/CSS/JS — Дастан, Рысбек, Диля)  ──fetch──▶  backend/ (FastAPI — Айша)
+frontend/  (HTML/CSS/JS)  ──fetch──▶  backend/ (FastAPI)
                                                                  │
                     API организаторов (GET ?group_id=) ◀─────────┤ datasource.py
                     Claude API (оценка по критериям)  ◀──────────┤ evaluator.py
